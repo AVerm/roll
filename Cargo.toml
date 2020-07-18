@@ -6,3 +6,4 @@ edition = "2018"
 description = "A command line utility used to simulate dice rolls."
 
 [dependencies]
+num-bigint = "0.3"
