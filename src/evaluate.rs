@@ -13,7 +13,7 @@ pub trait Delayable {
 
 /// Some computation that is stored and evaluated at a
 /// later point
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Thunk<T: Delayable> {
     /// The thing that can be evaluated at a later point
     delayed: Box<T>,

@@ -5,14 +5,14 @@ pub use crate::evaluate::Thunk;
 type TokenStream<'a> = std::iter::Peekable<std::slice::Iter<'a, Token>>;
 
 /// The starting point of the grammar, encompasses the entire input
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Start {
     /// Start = AddLayer ;
     Base(Thunk<AddLayer>),
 }
 
 /// Represents the layer that adding and subtracting are applied at
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum AddLayer {
     /// AddLayer = MultLayer ;
     Base(Thunk<MultLayer>),
@@ -22,7 +22,7 @@ pub enum AddLayer {
 }
 
 /// Represents the layer that multiplying and dividing are applied at
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum MultLayer {
     /// MultLayer = Roll ;
     Base(Thunk<Roll>),
@@ -31,7 +31,7 @@ pub enum MultLayer {
 }
 
 /// Represents rolling a die, and the parts of a roll
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Roll {
     /// Roll = SubExpression ;
     Base(Thunk<SubExpression>),
@@ -40,7 +40,7 @@ pub enum Roll {
 }
 
 /// Represents a sub-expression
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum SubExpression {
     /// SubExpression = Number ;
     Base(Thunk<Number>),
@@ -49,14 +49,14 @@ pub enum SubExpression {
 }
 
 /// Represents a number
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Number {
     /// Number = { "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "%" }+ ;
     StringRepresentation(String),
 }
 
 /// Represents an operator that has addition-level precedence
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum AddOperator {
     /// AddOperator = "+" ;
     Add,
@@ -65,7 +65,7 @@ pub enum AddOperator {
 }
 
 /// Represents an operator that has multiplication-level precedence
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum MultOperator {
     /// MultOperator = "*";
     Multiply,
@@ -227,5 +227,173 @@ impl RollOperator {
             Some(token) => Err(format!("Parse Error: Expected RollOperator, found {:?}", token)),
             None => Err("Parse Error: Expected RollOperator, found end of stream".to_string()),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::parse::{parse, Token, Thunk};
+    use crate::parse::{Start, AddLayer, MultLayer, Roll, SubExpression, Number, AddOperator, MultOperator, RollOperator};
+
+    #[test]
+    fn single_number() {
+        assert_eq!(
+            Ok(Thunk::new(Start::Base(
+                Thunk::new(AddLayer::Base(
+                    Thunk::new(MultLayer::Base(
+                        Thunk::new(Roll::Base(
+                            Thunk::new(SubExpression::Base(
+                                Thunk::new(Number::StringRepresentation(
+                                    "1".to_string()
+                                ))
+                            ))
+                        ))
+                    ))
+                ))
+            ))),
+            parse(vec![Token::Number("1".to_string())])
+        )
+    }
+
+    #[test]
+    fn multi_roll() {
+        assert_eq!(
+	    Ok(Thunk::new(Start::Base(
+		Thunk::new(AddLayer::Base(
+		    Thunk::new(MultLayer::Base(
+			Thunk::new(Roll::Recurse(
+			    Thunk::new(Roll::Recurse(
+				Thunk::new(Roll::Base(
+				    Thunk::new(SubExpression::Base(
+					Thunk::new(Number::StringRepresentation(
+					    "1".to_string()
+					))
+				    ))
+				)),
+                                RollOperator::D,
+				Thunk::new(SubExpression::Base(
+				    Thunk::new(Number::StringRepresentation(
+					"2".to_string()
+				    ))
+				))
+			    )),
+                            RollOperator::D,
+			    Thunk::new(SubExpression::Base(
+				Thunk::new(Number::StringRepresentation(
+				    "3".to_string()
+				))
+			    ))
+			))
+		    ))
+		))
+	    ))),
+            parse(
+		vec![
+		    Token::Number("1".to_string()),
+		    Token::RollSeparator("d".to_string()),
+		    Token::Number("2".to_string()),
+		    Token::RollSeparator("d".to_string()),
+		    Token::Number("3".to_string()),
+		]
+	    )
+        )
+    }
+
+    #[test]
+    fn multi_mult() {
+        assert_eq!(
+            Ok(Thunk::new(Start::Base(
+                Thunk::new(AddLayer::Base(
+                    Thunk::new(MultLayer::Recurse(
+                        Thunk::new(MultLayer::Recurse(
+                            Thunk::new(MultLayer::Base(
+                                Thunk::new(Roll::Base(
+                                    Thunk::new(SubExpression::Base(
+                                        Thunk::new(Number::StringRepresentation(
+                                            "1".to_string()
+                                        ))
+                                    ))
+                                ))
+                            )),
+                            MultOperator::Multiply,
+                            Thunk::new(Roll::Base(
+                                Thunk::new(SubExpression::Base(
+                                    Thunk::new(Number::StringRepresentation(
+                                        "2".to_string()
+                                    ))
+                                ))
+                            )),
+                        )),
+                        MultOperator::Divide,
+                        Thunk::new(Roll::Base(
+                            Thunk::new(SubExpression::Base(
+                                Thunk::new(Number::StringRepresentation(
+                                    "3".to_string()
+                                ))
+                            ))
+                        )),
+                    ))
+                ))
+            ))),
+            parse(
+		vec![
+		    Token::Number("1".to_string()),
+		    Token::MultOperator("*".to_string()),
+		    Token::Number("2".to_string()),
+		    Token::MultOperator("/".to_string()),
+		    Token::Number("3".to_string()),
+		]
+	    )
+        )
+    }
+
+    #[test]
+    fn add_and_multiply() {
+        assert_eq!(
+            Ok(Thunk::new(Start::Base(
+                Thunk::new(AddLayer::Recurse(
+                    Thunk::new(AddLayer::Base(
+                        Thunk::new(MultLayer::Recurse(
+                            Thunk::new(MultLayer::Base(
+                                Thunk::new(Roll::Base(
+                                    Thunk::new(SubExpression::Base(
+                                        Thunk::new(Number::StringRepresentation(
+                                            "1".to_string()
+                                        ))
+                                    ))
+                                ))
+                            )),
+                            MultOperator::Multiply,
+                            Thunk::new(Roll::Base(
+                                Thunk::new(SubExpression::Base(
+                                    Thunk::new(Number::StringRepresentation(
+                                        "2".to_string()
+                                    ))
+                                ))
+                            )),
+                        ))
+                    )),
+                    AddOperator::Add,
+                    Thunk::new(MultLayer::Base(
+                        Thunk::new(Roll::Base(
+                            Thunk::new(SubExpression::Base(
+                                Thunk::new(Number::StringRepresentation(
+                                    "3".to_string()
+                                ))
+                            ))
+                        ))
+                    )),
+                ))
+            ))),
+            parse(
+		vec![
+		    Token::Number("1".to_string()),
+		    Token::MultOperator("*".to_string()),
+		    Token::Number("2".to_string()),
+		    Token::AddOperator("+".to_string()),
+		    Token::Number("3".to_string()),
+		]
+	    )
+        )
     }
 }
