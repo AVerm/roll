@@ -1,5 +1,5 @@
 /// Represents a single segment of the input string
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Token {
     /// The separator character used in a roll
     RollSeparator(String),

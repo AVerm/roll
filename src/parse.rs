@@ -90,36 +90,142 @@ pub fn parse(tokenized: Vec<Token>) -> Result<Thunk<Start>, String> {
 
 impl Start {
     fn parse(mut tokens: &mut TokenStream) -> Result<Thunk<Self>, String> {
-        unimplemented!()
+        Ok(
+            Thunk::new(
+                Self::Base(
+                    AddLayer::parse(&mut tokens)?
+                )
+            )
+        )
+    }
+}
+
+macro_rules! parse_left_assoc_infix {
+    ($layer:ty, $base:ty, $operator:ty, $operator_token:pat) => {
+        fn parse(mut tokens: &mut TokenStream) -> Result<Thunk<Self>, String> {
+            let base = <$base>::parse(&mut tokens)?;
+            match tokens.peek() {
+                Some($operator_token) => {
+                    let mut left = Thunk::new(
+                        <$layer>::Base(base)
+                    );
+                    while let Some($operator_token) = tokens.peek() {
+                        let op = <$operator>::parse(&mut tokens)?;
+                        let right = <$base>::parse(&mut tokens)?;
+                        left = Thunk::new(
+                            <$layer>::Recurse(
+                                left,
+                                op,
+                                right,
+                            )
+                        );
+                    }
+                    Ok(left)
+                },
+                _ => Ok(
+                    Thunk::new(
+                        <$layer>::Base(base),
+                    )
+                ),
+            }
+        }
     }
 }
 
 impl AddLayer {
-    fn parse(mut tokens: &mut TokenStream) -> Result<Thunk<Self>, String> {
-        unimplemented!()
-    }
+    parse_left_assoc_infix!(AddLayer, MultLayer, AddOperator, Token::AddOperator(_));
 }
 
 impl MultLayer {
-    fn parse(mut tokens: &mut TokenStream) -> Result<Thunk<Self>, String> {
-        unimplemented!()
-    }
+    parse_left_assoc_infix!(MultLayer, Roll, MultOperator, Token::MultOperator(_));
 }
 
 impl Roll {
-    fn parse(mut tokens: &mut TokenStream) -> Result<Thunk<Self>, String> {
-        unimplemented!()
-    }
+    parse_left_assoc_infix!(Roll, SubExpression, RollOperator, Token::RollSeparator(_));
 }
 
 impl SubExpression {
     fn parse(mut tokens: &mut TokenStream) -> Result<Thunk<Self>, String> {
-        unimplemented!()
+        match tokens.peek() {
+            Some(Token::OpenParenthesis(_)) => {
+                tokens.next();
+                let nested = Start::parse(&mut tokens)?;
+                match tokens.next() {
+                    Some(Token::CloseParenthesis(_)) => Ok(
+                        Thunk::new(
+                            SubExpression::Recurse(nested)
+                        )
+                    ),
+                    Some(token) => Err(format!("Parse Error: Expected \")\", found {:?}", token)),
+                    None => Err("Parse Error: Expected \")\", found end of stream".to_string()),
+                }
+            },
+            Some(Token::Number(_)) => {
+                Ok(
+                    Thunk::new(
+                        SubExpression::Base(
+                            Number::parse(&mut tokens)?
+                        )
+                    )
+                )
+            },
+            Some(_) => Err(format!("Parse Error: Expected nested start or \"(\", found: {:?}", tokens.next())),
+            None => Err("Parse Error: Expected nested start or \"(\", found end of stream".to_string()),
+        }
     }
 }
 
 impl Number {
     fn parse(tokens: &mut TokenStream) -> Result<Thunk<Self>, String> {
-        unimplemented!()
+        match tokens.next() {
+            Some(Token::Number(number)) => Ok(
+                Thunk::new(
+                    Number::StringRepresentation(number.clone()),
+                )
+            ),
+            Some(token) => Err(format!("Parse Error: Expected Number, found {:?}", token)),
+            None => Err("Parse Error: Expected Number, found end of stream".to_string()),
+        }
+    }
+}
+
+impl AddOperator {
+    fn parse(tokens: &mut TokenStream) -> Result<Self, String> {
+        match tokens.next() {
+            Some(Token::AddOperator(op)) => match op.as_ref() {
+                "+" => Ok(AddOperator::Add),
+                "-" => Ok(AddOperator::Subtract),
+                _ => Err(format!("Parse Error: Expected \"+\" or \"-\", found {}", op)),
+            }
+            Some(token) => Err(format!("Parse Error: Expected AddOperator, found {:?}", token)),
+            None => Err("Parse Error: Expected AddOperator, found end of stream".to_string()),
+        }
+    }
+}
+
+impl MultOperator {
+    fn parse(tokens: &mut TokenStream) -> Result<Self, String> {
+        match tokens.next() {
+            Some(Token::MultOperator(op)) => match op.as_ref() {
+                "*" => Ok(MultOperator::Multiply),
+                "/" => Ok(MultOperator::Divide),
+                _ => Err(format!("Parse Error: Expected \"*\" or \"/\", found {}", op)),
+            }
+            Some(token) => Err(format!("Parse Error: Expected MultOperator, found {:?}", token)),
+            None => Err("Parse Error: Expected MultOperator, found end of stream".to_string()),
+        }
+    }
+}
+
+impl RollOperator {
+    fn parse(tokens: &mut TokenStream) -> Result<Self, String> {
+        match tokens.next() {
+            Some(Token::RollSeparator(op)) => match op.as_ref() {
+                "d" => Ok(RollOperator::D),
+                _ => Err(format!("Parse Error: Expected \"d\", found {}", op)),
+            }
+            Some(token) => Err(format!("Parse Error: Expected RollOperator, found {:?}", token)),
+            None => Err("Parse Error: Expected RollOperator, found end of stream".to_string()),
+        }
     }
 }
