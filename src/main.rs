@@ -1,5 +1,6 @@
 use roll::tokenize;
 use roll::parse;
+use roll::evaluate;
 
 fn main() {
     let mut input = String::new();
@@ -13,4 +14,8 @@ fn main() {
     let parsed = parse(tokenized);
 
     println!("{:#?}", parsed);
+
+    let evaluated = evaluate(parsed.unwrap());
+
+    println!("{:?}", evaluated);
 }
