@@ -85,7 +85,17 @@ pub fn parse(tokenized: Vec<Token>) -> Result<Thunk<Start>, String> {
     // An iterator over the tokens that were read
     let mut tokens = tokenized.iter().peekable();
     // Parse a Start (this is the root of the grammar)
-    Start::parse(&mut tokens)
+    let start = Start::parse(&mut tokens);
+    // If there are remaining tokens
+    if let Some(token) = tokens.next() {
+        // Report error
+        Err(format!("Parse Error: Expected end of stream, found {:?}", token))
+    }
+    // Otherwise
+    else {
+        // Pass the parse-tree out
+        start
+    }
 }
 
 impl Start {
