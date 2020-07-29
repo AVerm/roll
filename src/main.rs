@@ -3,19 +3,21 @@ use roll::parse;
 use roll::evaluate;
 
 fn main() {
-    let mut input = String::new();
-    std::io::stdin().read_line(&mut input)
-        .expect("Failed to read input");
+    let args: Vec<String> = std::env::args().skip(1).collect();
+
+    let input = args.join(" ");
 
     let tokenized = tokenize(input.trim().to_string());
-
-    println!("{:?}", tokenized);
-
     let parsed = parse(tokenized);
-
-    println!("{:#?}", parsed);
-
-    let evaluated = evaluate(parsed.unwrap());
-
-    println!("{:?}", evaluated);
+    let evaluated = match parsed {
+        Ok(parse_tree) => evaluate(parse_tree),
+        Err(error) => {
+            eprintln!("{}", error);
+            return;
+        },
+    };
+    match evaluated {
+        Ok(answer) => println!("{}", answer),
+        Err(error) => eprintln!("{}", error),
+    }
 }
